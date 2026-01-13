@@ -44,12 +44,14 @@ async def main():
 
     fetcher = TokenFetcher(args.username, args.password)
     client = Client(fetcher, args.gateway)
+    # verify time_cached contract
+    client.get_composite_info.clear()  # pyright: ignore[reportAttributeAccessIssue]
     await client.refresh_token()  # populate fetcher.info
     assert fetcher.info is not None
-    dayTime = time.strftime("%Y-%m-%d")
+    day_time = time.strftime("%Y-%m-%d")
 
     functions = {
-        "api-energy/electric/getFhpElectricData": {"type": 1, "dayTime": dayTime},
+        "api-energy/electric/getFhpElectricData": {"type": 1, "dayTime": day_time},
         "hes-gateway/common/getAccessoryList": None,
         "hes-gateway/common/getPageByTypeList": {
             "typeList": "sdcpSwitchModeTip,modeListPageVppTip,modeListPageVppExitTip"
@@ -60,7 +62,7 @@ async def main():
         "hes-gateway/terminal/backupHistorySummary": None,
         "hes-gateway/terminal/bill/electric/selectBenefitInfo": {
             "type": 1,
-            "dayTime": dayTime,
+            "dayTime": day_time,
         },
         "hes-gateway/terminal/chargePowerDetails": None,
         "hes-gateway/terminal/getAppGlobalConfig": {"userId": fetcher.info["userId"]},
@@ -116,9 +118,13 @@ async def main():
 
     async def get(func: str) -> None:
         if func.endswith("/getGatewayTouListV2"):
-            return (await client._post(client.url_base + func, None, functions[func]))["result"]  # noqa: SLF001
+            return (await client._post(client.url_base + func, None, functions[func]))[  # noqa: SLF001
+                "result"
+            ]
         if func.startswith(("api-energy", "hes-gateway")):
-            return (await client._get(client.url_base + func, functions[func]))["result"]  # noqa: SLF001
+            return (await client._get(client.url_base + func, functions[func]))[  # noqa: SLF001
+                "result"
+            ]
         return await getattr(client, func)()
 
     async def async_get(func: str) -> None:
