@@ -44,6 +44,8 @@ async def main():
 
     fetcher = TokenFetcher(args.username, args.password)
     client = Client(fetcher, args.gateway)
+    # verify time_cached contract
+    client.get_composite_info.clear() # pyright: ignore[reportAttributeAccessIssue]
     await client.refresh_token()  # populate fetcher.info
     assert fetcher.info is not None
     dayTime = time.strftime("%Y-%m-%d")
