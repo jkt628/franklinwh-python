@@ -6,8 +6,10 @@ cache arguments and results indefinitely, think 'self' for member functions.
 """
 
 import asyncio
+from collections.abc import Callable
 from datetime import timedelta
 from functools import wraps
+from typing import Any
 
 from cachetools import TTLCache
 
@@ -33,3 +35,40 @@ def time_cached(ttl: timedelta = timedelta(seconds=2)):
         return wrapped
 
     return wrapper
+
+
+class also_clear:
+    """Decorator to clear wrapped and additional objects."""
+
+    @staticmethod
+    def clearable(extra: Callable[..., Any]) -> None:
+        """Ensure clear()."""
+        if not callable(getattr(extra, "clear", None)):
+            raise TypeError(f"{extra} missing clear()")
+
+    def __init__(self, extra: Callable[..., Any] | list[Callable[..., Any]]) -> None:
+        """Collect additional objects to clear()."""
+        if callable(extra):
+            extra = [extra]
+        if not extra:
+            raise ValueError("extra must not be empty")
+        for func in extra:
+            self.clearable(func)
+        self.extra: list[Callable[..., Any]] = extra
+
+    def clear(self):
+        """Clear wrapped and additional objects."""
+        for extra in self.extra:
+            extra.clear()
+
+    def __call__(self, func):
+        """Wrap function."""
+
+        @wraps(func)
+        async def wrapped(*args, **kwargs):
+            return await func(*args, **kwargs)
+
+        self.clearable(func)
+        self.extra.append(func)
+        wrapped.clear = self.clear
+        return wrapped

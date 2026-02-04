@@ -10,9 +10,11 @@ from .client import (
     GridStatus,
     HttpClientFactory,
     Mode,
+    RunStatus,
     Stats,
     SwitchState,
     TokenFetcher,
+    WorkMode,
 )
 
 __all__ = [
@@ -25,7 +27,9 @@ __all__ = [
     "GridStatus",
     "HttpClientFactory",
     "Mode",
+    "RunStatus",
     "Stats",
     "SwitchState",
     "TokenFetcher",
+    "WorkMode",
 ]
