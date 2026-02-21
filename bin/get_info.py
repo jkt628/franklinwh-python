@@ -53,6 +53,7 @@ async def main():
     day_time = time.strftime("%Y-%m-%d")
 
     functions: dict[str, Any] = {
+        "info": None,
         "hes-gateway/common/getPowerCapConfigList": None,
         "hes-gateway/terminal/getAppGlobalConfig": {"userId": fetcher.info["userId"]},
         "hes-gateway/terminal/recommend/recommendFlag": None,
@@ -131,7 +132,9 @@ async def main():
             }
         )
 
-    async def get(func: str) -> None:
+    async def get(func: str):
+        if func == "info":
+            return fetcher.info
         if func.startswith(("api-energy", "hes-gateway")):
             return (await client._get(client.url_base + func, functions[func]))[  # noqa: SLF001
                 "result"
