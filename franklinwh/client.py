@@ -79,6 +79,7 @@ def empty_stats():
             0.0,
             0.0,
             GridStatus.NORMAL,
+            RunStatus.STANDBY,
         ),
         Totals(
             0.0,
@@ -199,6 +200,7 @@ class Current:
     switch_2_load: float
     v2l_use: float
     grid_status: GridStatus
+    run_status: RunStatus
 
 
 @dataclass
@@ -303,6 +305,38 @@ class Id(Enum):
             if item.value == value:
                 return item
         raise ValueError(f"No {cls.__name__} with value {value}")
+
+
+class RunStatus(Id):
+    """Represent run_status values of the FranklinWH gateway."""
+
+    STANDBY = ("Standby", 0)
+    CHARGING = ("Charging", 1)
+    DISCHARGING = ("Discharging", 2)
+
+    @staticmethod
+    def from_id(id: int) -> RunStatus:
+        """Convert a run_status id to a RunStatus enum member.
+
+        Parameters
+        ----------
+        value : int
+            The run_status id to convert.
+
+        Returns:
+        -------
+        RunStatus
+            The corresponding RunStatus enum member.
+        """
+        match id:
+            case 0:
+                return RunStatus.STANDBY
+            case 1:
+                return RunStatus.CHARGING
+            case 2:
+                return RunStatus.DISCHARGING
+            case _:
+                raise ValueError(f"Unknown run_status id: {id}")
 
 
 class WorkMode(Id):
@@ -934,6 +968,7 @@ class Client(HttpClientFactory):
                 sw_data["SW2ExpPower"],
                 sw_data["CarSWPower"],
                 grid_status,
+                RunStatus.from_id(data["run_status"]),
             ),
             Totals(
                 data["kwh_fhp_chg"],
