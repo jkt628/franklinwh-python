@@ -2,6 +2,18 @@
 
 This module provides classes and functions to authenticate, send commands,
 and retrieve statistics from FranklinWH energy gateway devices.
+
+THIS version fakes the API responses for testing and development purposes, no actual gateways required.
+Leave just enough API for https://github.com/jkt628/homeassistant-franklinwh
+or https://github.com/richo/homeassistant-franklinwh, everything else breaks.
+Two gateways with different accessories are simulated with statistics based on ID and random noise:
+
+* 10060005A02X24456789 - has a generator module
+* 10060005A02X24123456 - has a smart circuit module
+
+Floats are based on the last three digits of the gateway ID +/- 2% random noise, i.e.,
+76.9-80.9 for the first gateway or 43.6-47.6 for the second.
+States have a 2% chance of changing.
 """
 
 # must work with Python >= 3.13
