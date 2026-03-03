@@ -31,8 +31,6 @@ import zlib
 
 import httpx
 
-from .api import DEFAULT_URL_BASE, ISSUES_URL
-
 
 class AccessoryType(Enum):
     """Represents the type of accessory connected to the FranklinWH gateway.
@@ -572,24 +570,28 @@ class GatewayOfflineException(Exception):
 
 
 class HttpClientFactory:
-    """Factory to create AsyncClient."""
-
-    @staticmethod
-    def default_get_client() -> httpx.AsyncClient:
-        """Create an HTTP/2 AsyncClient."""
-        return httpx.AsyncClient(http2=True)
-
-    factory: Callable[..., httpx.AsyncClient] = default_get_client
+    """Factory to create FakeAsyncClient."""
 
     @classmethod
     def set_client_factory(cls, factory: Callable[..., httpx.AsyncClient]) -> None:
-        """Set AsyncClient factory method."""
-        cls.factory = factory
+        """Do nothing."""
 
     @classmethod
     def get_client(cls) -> httpx.AsyncClient:
-        """Create an AsyncClient via factory method."""
-        return cls.factory()
+        """Create a FakeAsyncClient."""
+
+        class FakeAsyncClient(httpx.AsyncClient):
+            """A fake AsyncClient that raises exceptions on use."""
+
+            async def post(self, url, *args, **kwargs):
+                """Trash a POST request."""
+                raise GatewayOfflineException("Cannot fake a POST request.")
+
+            async def get(self, url, *args, **kwargs):
+                """Trash a GET request."""
+                raise GatewayOfflineException("Cannot fake a GET request.")
+
+        return FakeAsyncClient()
 
 
 class TokenFetcher(HttpClientFactory):
@@ -652,12 +654,11 @@ class Client(HttpClientFactory):
     """Client for interacting with FranklinWH gateway API."""
 
     def __init__(
-        self, fetcher: TokenFetcher, gateway: str, url_base: str = DEFAULT_URL_BASE
+        self, fetcher: TokenFetcher, gateway: str
     ) -> None:
         """Initialize the Client with the provided TokenFetcher, gateway ID, and optional URL base."""
         self.fetcher = fetcher
         self.gateway = gateway
-        self.url_base = url_base
         self.token = ""
         self.snno = 0
         self.session = self.get_client()
@@ -669,95 +670,6 @@ class Client(HttpClientFactory):
 
         self.logger = logging.getLogger("franklinwh")
         self.logger.debug("Session class: %s", type(self.session))
-        if self.logger.isEnabledFor(logging.DEBUG):
-
-            async def debug_request(request: httpx.Request):
-                body = request.content
-                if body and request.headers.get("Content-Type", "").startswith(
-                    "application/json"
-                ):
-                    body = json.dumps(json.loads(body), ensure_ascii=False)
-                self.logger.debug(
-                    "Request: %s %s %s %s",
-                    request.method,
-                    request.url,
-                    request.headers,
-                    body,
-                )
-                return request
-
-            async def debug_response(response: httpx.Response):
-                await response.aread()
-                self.logger.debug(
-                    "Response: %s %s %s %s",
-                    response.status_code,
-                    response.url,
-                    response.headers,
-                    response.json(),
-                )
-                return response
-
-            self.session.event_hooks["request"].append(debug_request)
-            self.session.event_hooks["response"].append(debug_response)
-
-    # TODO(richo) Setup timeouts and deal with them gracefully.
-    async def _post(self, url, payload, params: dict | None = None):
-        if params is None:
-            params = {}
-        else:
-            params = params.copy()
-        params.update({"gatewayId": self.gateway, "lang": "en_US"})
-
-        async def __post():
-            return (
-                await self.session.post(
-                    url,
-                    params=params,
-                    headers={
-                        "loginToken": self.token,
-                        "Content-Type": "application/json",
-                    },
-                    data=payload,
-                )
-            ).json()
-
-        return await retry(__post, lambda j: j["code"] != 401, self.refresh_token)
-
-    async def _post_form(self, url, payload):
-        async def __post():
-            return (
-                await self.session.post(
-                    url,
-                    headers={
-                        "loginToken": self.token,
-                        "Content-Type": "application/x-www-form-urlencoded",
-                        "optsource": "3",
-                    },
-                    data=payload,
-                )
-            ).json()
-
-        return await retry(__post, lambda j: j["code"] != 401, self.refresh_token)
-
-    async def _get(self, url, params: dict | None = None):
-        if params is None:
-            params = {}
-        else:
-            params = params.copy()
-        params.update({"gatewayId": self.gateway, "lang": "en_US"})
-
-        async def __get():
-            return (
-                await self.session.get(
-                    url, params=params, headers={"loginToken": self.token}
-                )
-            ).json()
-
-        return await retry(__get, lambda j: j["code"] != 401, self.refresh_token)
-
-    async def refresh_token(self):
-        """Refresh the authentication token using the TokenFetcher."""
-        self.token = await self.fetcher.get_token()
 
     async def get_accessories(self):
         """Get the list of accessories connected to the gateway."""
