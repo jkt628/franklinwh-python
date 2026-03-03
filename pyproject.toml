@@ -4,40 +4,27 @@ build-backend = "hatchling.build"
 
 [project]
 name = "franklinwh"
-version = "2026.2.1"
+version = "9999.9.9.dev9"
 authors = [
-{ name="Richo Butts", email="richo@psych0tik.net" },
+  { name = "Richo Butts", email = "richo@psych0tik.net" },
+  { name = "Jack Thomasson", email = "4302889+jkt628@users.noreply.github.com" },
 ]
 description = "Python wrapper for FranklinWH"
 readme = "README.md"
 requires-python = ">=3.8"
-classifiers = [
-]
-dependencies = [
-  "httpx[http2]>=0.28.1"
-]
+classifiers = []
+dependencies = ["httpx[http2]>=0.28.1"]
 
 [project.optional-dependencies]
-bin = [
-  "jsonpickle"
-]
-build = [
-  "build",
-  "twine",
-]
-test = [
-  "pytest"
-]
+bin = ["jsonpickle"]
+build = ["build", "twine"]
+test = ["pytest"]
 
 [project.urls]
-Homepage = "https://github.com/richo/franklinwh-python"
-Issues = "https://github.com/richo/franklinwh-python/issues"
+Homepage = "https://github.com/jkt628/franklinwh-python/tree/fake-it-til-you-make-it"
 
 [tool.hatch.build]
-exclude = [
-  "/env",
-  ".*",
-]
+exclude = ["/env", ".*"]
 
 [tool.ruff]
 line-length = 120
