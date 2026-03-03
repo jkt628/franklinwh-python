@@ -24,9 +24,7 @@ from collections.abc import Callable, Generator
 from dataclasses import dataclass
 from datetime import timedelta
 from enum import Enum
-import hashlib
 import json
-import logging
 import time
 from typing import TYPE_CHECKING, Any, Final, Self
 import zlib
@@ -603,24 +601,31 @@ class PermissionDeniedException(Exception):
 
 
 class HttpClientFactory:
-    """Factory to create AsyncClient."""
-
-    @staticmethod
-    def default_get_client() -> httpx.AsyncClient:
-        """Create an HTTP/2 AsyncClient."""
-        return httpx.AsyncClient(http2=True)
-
-    factory: Callable[..., httpx.AsyncClient] = default_get_client
+    """Factory to create FakeAsyncClient."""
 
     @classmethod
     def set_client_factory(cls, factory: Callable[..., httpx.AsyncClient]) -> None:
-        """Set AsyncClient factory method."""
-        cls.factory = factory
+        """Do nothing."""
 
     @classmethod
     def get_client(cls) -> httpx.AsyncClient:
-        """Create an AsyncClient via factory method."""
-        return cls.factory()
+        """Create a FakeAsyncClient."""
+
+        class FakeAsyncClient(httpx.AsyncClient):
+            """A fake AsyncClient that raises exceptions on use."""
+
+            def __init__(self) -> None:  # pylint: disable=super-init-not-called
+                """Short circuit initialization."""
+
+            async def post(self, url, *args, **kwargs):
+                """Trash a POST request."""
+                raise GatewayOfflineException("Cannot fake a POST request.")
+
+            async def get(self, url, *args, **kwargs):
+                """Trash a GET request."""
+                raise GatewayOfflineException("Cannot fake a GET request.")
+
+        return FakeAsyncClient()
 
 
 class TokenFetcher(HttpClientFactory):
@@ -646,28 +651,12 @@ class TokenFetcher(HttpClientFactory):
         await TokenFetcher(username, password).get_token()
 
     async def fetch_token(self) -> dict:
-        """Log in to the FranklinWH API and retrieve account information."""
-        url = (
-            DEFAULT_URL_BASE + "hes-gateway/terminal/initialize/appUserOrInstallerLogin"
-        )
-        form = {
+        """Fake a login token."""
+        return {
             "account": self.username,
-            "password": hashlib.md5(bytes(self.password, "ascii")).hexdigest(),
-            "lang": "en_US",
-            "type": 1,
+            "token": "APP_ID::fake",
+            "userId": "fake",
         }
-        async with self.get_client() as client:
-            res = await client.post(url, data=form, timeout=10)
-        res.raise_for_status()
-        js = res.json()
-
-        if js["code"] == 401:
-            raise InvalidCredentialsException(js["message"])
-
-        if js["code"] == 400:
-            raise AccountLockedException(js["message"])
-
-        return js["result"]
 
 
 async def retry(func, filter, refresh_func):
@@ -704,99 +693,6 @@ class Client(HttpClientFactory):
             )
             for mode in (WorkMode.GENERATOR, WorkMode.DEBUG)
         }
-
-        # to enable detailed logging add this to configuration.yaml:
-        # logger:
-        #   logs:
-        #     franklinwh: debug
-
-        self.logger = logging.getLogger("franklinwh")
-        self.logger.debug("Session class: %s", type(self.session))
-        if self.logger.isEnabledFor(logging.DEBUG):
-
-            async def debug_request(request: httpx.Request):
-                body = request.content
-                if body and request.headers.get("Content-Type", "").startswith(
-                    "application/json"
-                ):
-                    body = json.dumps(json.loads(body), ensure_ascii=False)
-                self.logger.debug(
-                    "Request: %s %s %s %s",
-                    request.method,
-                    request.url,
-                    request.headers,
-                    body,
-                )
-                return request
-
-            async def debug_response(response: httpx.Response):
-                await response.aread()
-                self.logger.debug(
-                    "Response: %s %s %s %s",
-                    response.status_code,
-                    response.url,
-                    response.headers,
-                    response.json(),
-                )
-                return response
-
-            self.session.event_hooks["request"].append(debug_request)
-            self.session.event_hooks["response"].append(debug_response)
-
-    # TODO(richo) Setup timeouts and deal with them gracefully.
-    async def _post(self, url, payload, params: dict | None = None):
-        if params is None:
-            params = {}
-        else:
-            params = params.copy()
-        params.update({"gatewayId": self.gateway, "lang": "en_US"})
-
-        async def __post():
-            return (
-                await self.session.post(
-                    url,
-                    params=params,
-                    headers={
-                        "loginToken": self.token,
-                        "Content-Type": "application/json",
-                    },
-                    data=payload,
-                )
-            ).json()
-
-        return await retry(__post, lambda j: j["code"] != 401, self.refresh_token)
-
-    async def _post_form(self, url, payload):
-        async def __post():
-            return (
-                await self.session.post(
-                    url,
-                    headers={
-                        "loginToken": self.token,
-                        "Content-Type": "application/x-www-form-urlencoded",
-                        "optsource": "3",
-                    },
-                    data=payload,
-                )
-            ).json()
-
-        return await retry(__post, lambda j: j["code"] != 401, self.refresh_token)
-
-    async def _get(self, url, params: dict | None = None):
-        if params is None:
-            params = {}
-        else:
-            params = params.copy()
-        params.update({"gatewayId": self.gateway, "lang": "en_US"})
-
-        async def __get():
-            return (
-                await self.session.get(
-                    url, params=params, headers={"loginToken": self.token}
-                )
-            ).json()
-
-        return await retry(__get, lambda j: j["code"] != 401, self.refresh_token)
 
     async def refresh_token(self):
         """Refresh the authentication token using the TokenFetcher."""
