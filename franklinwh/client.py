@@ -9,10 +9,12 @@ or https://github.com/richo/homeassistant-franklinwh, everything else breaks.
 Two gateways with different accessories are simulated with statistics based on ID and random noise:
 
 * 10060005A02X24456789 - has a generator module
-* 10060005A02X24123456 - has a smart circuit module
+* 10060005A02X24123456 - has a smart circuit module, NEVER merged
 
-Floats are based on the last three digits of the gateway ID +/- 2% random noise, i.e.,
-76.9-80.9 for the first gateway or 43.6-47.6 for the second.
+The last three digits of the gateway ID form the basis for the fake statistics.
+Current stats add +/- 2% random noise to the basis, i.e.,
+77.3-80.4 for the first gateway or 44.6-46.5 for the second.
+Totals stats increase by random 2% of the basis.
 States have a 2% chance of changing.
 """
 
@@ -20,11 +22,13 @@ States have a 2% chance of changing.
 from __future__ import annotations  # noqa: RUF100, TID251
 
 import asyncio
-from collections.abc import Callable, Generator
+from collections.abc import Callable, Generator, Sequence
 from dataclasses import dataclass
 from datetime import timedelta
 from enum import Enum
 import json
+import random
+import re
 import time
 from typing import TYPE_CHECKING, Any, Final, Self
 import zlib
@@ -320,6 +324,32 @@ class Totals:
     switch_2_use: float
     v2l_export: float
     v2l_import: float
+
+
+conversions: Final = {
+    "p_sun": "solar_production",
+    "p_gen": "generator_production",
+    "p_fhp": "battery_use",
+    "p_uti": "grid_use",
+    "p_load": "home_load",
+    "soc": "battery_soc",
+    "SW1ExpPower": "switch_1_load",
+    "SW2ExpPower": "switch_2_load",
+    "CarSWPower": "v2l_use",
+    "kwh_fhp_chg": "battery_charge",
+    "kwh_fhp_di": "battery_discharge",
+    "kwh_uti_in": "grid_import",
+    "kwh_uti_out": "grid_export",
+    "kwh_sun": "solar",
+    "kwh_gen": "generator",
+    "kwh_load": "home_use",
+    "SW1ExpEnergy": "switch_1_use",
+    "SW2ExpEnergy": "switch_2_use",
+    "CarSWExpEnergy": "v2l_export",
+    "CarSWImpEnergy": "v2l_import",
+}
+no_generator: Final = {k: 0 for k in conversions if "gen" in k}
+no_switch_usage: Final = {k: 0 for k in conversions if "SW" in k}
 
 
 @dataclass
@@ -693,6 +723,45 @@ class Client(HttpClientFactory):
             )
             for mode in (WorkMode.GENERATOR, WorkMode.DEBUG)
         }
+        self.has_generator = gateway.endswith("9")
+        self.has_smart_circuit = gateway.endswith("6")
+        self.basis = (
+            float(gateway[-3:]) / 10
+            if re.search(r"\d{3}$", gateway) is not None
+            else 1.0
+        )  # use last three digits of gateway ID for stats basis
+        self.two_percent = (
+            self.basis * 0.02
+        )  # pre-calculate 2% of the basis for noise generation
+        self.stats = empty_stats()
+        self.switches = SwitchState() if self.has_smart_circuit else None
+        self.mode = Mode.time_of_use()
+
+    def random_basis(self) -> float:
+        """Generate a fake statistic value from the basis and random noise."""
+        return self.basis + random.uniform(-self.two_percent, self.two_percent)
+
+    def random_increase(self) -> float:
+        """Generate a fake increase value from the basis and random noise."""
+        return random.uniform(0.0, self.two_percent)
+
+    @staticmethod
+    def random_enum(current: Enum) -> Enum:
+        """Generate a random value from the enum that is not current."""
+        if random.random() < 0.02:  # 2% chance to change state
+            values = list(current.__class__)
+            values.remove(current)
+            return random.choice(values)
+        return current
+
+    @staticmethod
+    def random_sequence(values: Sequence[Any], current: Any) -> Any:
+        """Generate a random value from the sequence that is not current."""
+        if random.random() < 0.02:  # 2% chance to change state
+            values = list(values).copy()
+            values.remove(current)
+            return random.choice(values)
+        return current
 
     async def refresh_token(self):
         """Refresh the authentication token using the TokenFetcher."""
@@ -700,11 +769,21 @@ class Client(HttpClientFactory):
 
     @time_cached(timedelta(days=1))
     async def get_accessories(self):
-        """Get the list of accessories connected to the gateway."""
-        url = self.url_base + "hes-gateway/common/getAccessoryList"
-        # with no accessories this returns:
-        # {"code":200,"message":"Query success!","result":[],"success":true,"total":0}
-        return (await self._get(url))["result"]
+        """Fake the list of accessories connected to the gateway."""
+        accessories = []
+        if self.has_generator:
+            accessories.append(
+                {
+                    "accessoryType": AccessoryType.GENERATOR_MODULE.id,
+                }
+            )
+        if self.has_smart_circuit:
+            accessories.append(
+                {
+                    "accessoryType": AccessoryType.SMART_CIRCUITS_MODULE.id,
+                }
+            )
+        return accessories
 
     async def get_smart_switch_state(self) -> SwitchState:
         """Get the current state of the smart switches."""
@@ -758,9 +837,14 @@ class Client(HttpClientFactory):
     # Sends a 203 which is a high level status
     @time_cached()
     async def _status(self):
-        payload = self._build_payload(203, {"opt": 1, "refreshData": 1})
-        data = (await self._mqtt_send(payload))["result"]["dataArea"]
-        return json.loads(data)
+        status = {
+            "pro_load": [0, 0, 0],
+        }
+        if self.has_smart_circuit:
+            for i in range(3):
+                if random.random() < 0.02:  # 2% chance to change state
+                    status["pro_load"][i] = 1 - status["pro_load"][i]
+        return status
 
     # Sends a 311 which appears to be a more specific switch command
     @time_cached()
@@ -773,16 +857,19 @@ class Client(HttpClientFactory):
     # https://github.com/richo/homeassistant-franklinwh/issues/27#issuecomment-2714422732
     @time_cached()
     async def _switch_usage(self):
-        payload = self._build_payload(353, {"opt": 0, "order": self.gateway})
-        data = (await self._mqtt_send(payload))["result"]["dataArea"]
-        return json.loads(data)
+        if not self.has_smart_circuit:
+            return no_switch_usage
+        return {k: self.random_basis() for k in conversions if k.endswith("Power")} | {
+            k: getattr(self.stats.totals, v) + self.random_increase()
+            for k, v in conversions.items()
+            if k.endswith("Energy")
+        }
 
     @time_cached(timedelta(hours=1))  # eventually consistent with changes via app
     async def get_tou_settings(self) -> dict[str, Any]:
-        """Get the current Time of Use settings for the FranklinWH gateway."""
-        url = self.url_base + "hes-gateway/terminal/tou/getGatewayTouListV2"
-        res = await self._post(url, None, {"showType": 1})
-        return res.get("result", {})
+        """Fake the current Time of Use settings for the FranklinWH gateway."""
+        self.mode = self.random_sequence(self._modes.values(), self.mode)
+        return {"currendId": self.mode.id, "list": self._modes.values()}
 
     @also_clear(get_tou_settings)
     @time_cached(timedelta(hours=1))
@@ -871,7 +958,7 @@ class Client(HttpClientFactory):
         if "offgridreason" in data:
             grid_status = GridStatus.from_offgridreason(data["offgridreason"])
 
-        return Stats(
+        self.stats = Stats(
             Current(
                 data["p_sun"],
                 data["p_gen"],
@@ -900,6 +987,7 @@ class Client(HttpClientFactory):
                 sw_data["CarSWImpEnergy"],
             ),
         )
+        return self.stats
 
     def next_snno(self):
         """Get the next sequence number for API requests."""
@@ -1028,10 +1116,37 @@ class Client(HttpClientFactory):
 
     @time_cached()
     async def get_composite_info(self):
-        """Get composite information about the FranklinWH gateway."""
-        url = self.url_base + "hes-gateway/terminal/getDeviceCompositeInfo"
-        params = {"refreshFlag": 1}
-        return (await self._get(url, params))["result"]
+        """Fake composite information about the FranklinWH gateway."""
+        data = (
+            no_generator
+            | {
+                k: self.random_basis()
+                for k in conversions
+                if k.startswith(("p_", "soc"))
+                and (self.has_generator or "gen" not in k)
+            }
+            | {
+                k: getattr(self.stats.totals, v) + self.random_increase()
+                for k, v in conversions.items()
+                if k.startswith("kwh_") and (self.has_generator or "gen" not in k)
+            }
+        )
+        data["genStat"] = (
+            2
+            if self.has_generator
+            and random.random() < 0.02
+            and not self.stats.current.generator_enabled
+            else 0
+        )
+        self.stats.current.grid_status = self.random_enum(
+            self.stats.current.grid_status
+        )
+        data["offgridreason"] = self.stats.current.grid_status.value - 1
+        self.stats.current.run_status = self.random_enum(self.stats.current.run_status)
+        data["run_status"] = self.stats.current.run_status.id
+        data["mode"] = self.mode.workMode
+
+        return {"runtimeData": data}
 
     async def set_generator(self, enabled: bool):
         """Enable or disable the generator on the FranklinWH gateway.
@@ -1055,8 +1170,14 @@ class Client(HttpClientFactory):
         - number of aGates, status (online/offline), model, firmware version, etc
         - connectivity type (4G/WiFi/Ethernet), etc
         """
-        url = DEFAULT_URL_BASE + "hes-gateway/terminal/getHomeGatewayList"
-        return (await self._get(url))["result"]
+        return [
+            {
+                "id": "10060005A02X24456789",
+            },
+            {
+                "id": "10060005A02X24123456",
+            },
+        ]
 
 
 class UnknownMethodsClient(Client):
