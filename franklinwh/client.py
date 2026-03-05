@@ -7,7 +7,7 @@ and retrieve statistics from FranklinWH energy gateway devices.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable, Generator
+from collections.abc import Callable, Generator, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
@@ -544,13 +544,13 @@ class SwitchState(tuple[bool | None, bool | None, bool | None]):
 
     __slots__ = ()
 
-    def __new__(cls, lst: list[bool | None] | None = None):
-        """Convert a list to a SwitchState tuple.
+    def __new__(cls, lst: Sequence[bool | None] | None = None):
+        """Convert a sequence to a SwitchState tuple.
 
         Parameters
         ----------
-        lst : optional list[bool | None]
-            The list to convert, defaults to [None, None, None].
+        lst : optional Sequence[bool | None]
+            The sequence to convert, defaults to [None, None, None].
 
         Returns:
         -------
@@ -559,11 +559,11 @@ class SwitchState(tuple[bool | None, bool | None, bool | None]):
         """
         if lst is None:
             lst = [None, None, None]
-
-        if len(lst) != 3:
+        elif len(lst) != 3:
             raise ValueError(
-                "List must have exactly 3 elements to convert to SwitchState."
+                "Sequence must have exactly 3 elements to convert to SwitchState."
             )
+        # tuple constructor only needs an iterable, convert to list for safety
         return super().__new__(cls, lst)
 
 
