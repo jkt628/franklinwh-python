@@ -637,8 +637,8 @@ class Client(HttpClientFactory):
         """Initialize the Client with the provided TokenFetcher, gateway ID, and optional URL base."""
         self.fetcher = fetcher
         self.gateway = gateway
-        self.has_generator = gateway.endswith("9")
-        self.has_smart_circuit = gateway.endswith("6")
+        self.has_generator = "9" in gateway
+        self.has_smart_circuit = "3" in gateway
         self.basis = (
             float(gateway[-3:]) / 10
             if re.search(r"\d{3}$", gateway) is not None
