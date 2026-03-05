@@ -9,7 +9,7 @@ or https://github.com/richo/homeassistant-franklinwh, everything else breaks.
 Two gateways with different accessories are simulated with statistics based on ID and random noise:
 
 * 10060005A02X24456789 - has a generator module
-* 10060005A02X24123456 - has a smart circuit module, NEVER merged
+* 10060005A02X24123456 - has a generator module and a smart circuit module, NEVER merged
 
 The last three digits of the gateway ID form the basis for the fake statistics.
 Current stats add +/- 2% random noise to the basis, i.e.,
@@ -724,7 +724,7 @@ class Client(HttpClientFactory):
             for mode in (WorkMode.GENERATOR, WorkMode.DEBUG)
         }
         self.has_generator = gateway.endswith("9")
-        self.has_smart_circuit = gateway.endswith("6")
+        self.has_smart_circuit = "4" in gateway
         self.basis = (
             float(gateway[-3:]) / 10
             if re.search(r"\d{3}$", gateway) is not None
