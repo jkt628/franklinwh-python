@@ -128,6 +128,8 @@ async def main():
                 "get_tou_settings": None,
                 "get_mode": None,
                 "get_smart_switch_state": None,
+                "get_smart_circuits": None,
+                "get_smart_circuits_enhanced": None,
                 "get_stats": None,
             }
         )
