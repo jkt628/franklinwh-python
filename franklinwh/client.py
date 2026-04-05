@@ -17,7 +17,6 @@ import json
 import logging
 import time
 from typing import TYPE_CHECKING, Any, Final, Self
-from warnings import deprecated, warn
 import zlib
 
 import httpx
@@ -289,9 +288,6 @@ class Current:
     grid_use: float
     home_load: float
     battery_soc: float
-    switch_1_load: float  # deprecated
-    switch_2_load: float  # deprecated
-    v2l_use: float  # deprecated
     grid_status: GridStatus
     run_status: RunStatus
 
@@ -307,10 +303,6 @@ class Totals:
     solar: float
     generator: float
     home_use: float
-    switch_1_use: float  # deprecated
-    switch_2_use: float  # deprecated
-    v2l_export: float  # deprecated
-    v2l_import: float  # deprecated
 
 
 @dataclass
@@ -527,41 +519,6 @@ class Mode(dict[str, Any]):
         if soc is not None:
             params["soc"] = str(int(soc))
         return params
-
-
-@deprecated("use SmartCircuits instead")
-class SwitchState(tuple[bool | None, bool | None, bool | None]):
-    """Represents the state of the smart switches connected to the FranklinWH gateway.
-
-    Each element in the tuple corresponds to a switch:
-        - True: Switch is ON
-        - False: Switch is OFF
-        - None: Switch state is unchanged
-    """
-
-    __slots__ = ()
-
-    def __new__(cls, lst: list[bool | None] | None = None):
-        """Convert a list to a SwitchState tuple.
-
-        Parameters
-        ----------
-        lst : optional list[bool | None]
-            The list to convert, defaults to [None, None, None].
-
-        Returns:
-        -------
-        SwitchState
-            The converted SwitchState tuple.
-        """
-        if lst is None:
-            lst = [None, None, None]
-
-        if len(lst) != 3:
-            raise ValueError(
-                "List must have exactly 3 elements to convert to SwitchState."
-            )
-        return super().__new__(cls, lst)
 
 
 @dataclass
@@ -904,78 +861,10 @@ class Client(HttpClientFactory):
         # {"code":200,"message":"Query success!","result":[],"success":true,"total":0}
         return (await self._get(url))["result"]
 
-    @deprecated("use get_smart_circuits() instead")
-    async def get_smart_switch_state(self) -> SwitchState:
-        """Get the current state of the smart switches."""
-        # TODO(richo) This API is super in flux, both because of how vague the
-        # underlying API is and also trying to figure out what to do with
-        # inconsistency.
-        # Whether this should use the _switch_status() API is super unclear.
-        # Maybe I will reach out to FranklinWH once I have published.
-        status = await self._status()
-        switches = [x == 1 for x in status["pro_load"]]
-        return SwitchState(switches)
-
-    @deprecated("use set_circuit() instead")
-    async def set_smart_switch_state(self, state: SwitchState):
-        """Set the state of the smart circuits.
-
-        Setting a value in the state tuple to True will turn on that circuit,
-        setting to False will turn it off. Setting to None will make it
-        unchanged.
-        """
-
-        payload = await self._switch_status()
-        payload["opt"] = 1
-        payload.pop("modeChoose")
-        payload.pop("result")
-
-        if payload["SwMerge"] == 1:
-            if state[0] != state[1]:
-                raise RuntimeError(
-                    "Smart switches 1 and 2 are merged! Setting them to different values could do bad things to your house. Aborting."
-                )
-
-        def set_value(keys, value):
-            for k in keys:
-                payload[k] = value
-
-        for i in range(3):
-            sw = i + 1
-            if state[i] is not None:
-                mode = f"Sw{sw}Mode"
-                msg_type = f"Sw{sw}MsgType"
-                pro_load = f"Sw{sw}ProLoad"
-
-                payload[msg_type] = 1
-                payload[mode] = int(bool(state[i]))
-                payload[pro_load] = payload[mode] ^ 1
-
-        wire_payload = self._build_payload(311, payload)
-        data = (await self._mqtt_send(wire_payload))["result"]["dataArea"]
-        return json.loads(data)
-
     # Sends a 203 which is a high level status
     @time_cached()
     async def _status(self):
         payload = self._build_payload(203, {"opt": 1, "refreshData": 1})
-        data = (await self._mqtt_send(payload))["result"]["dataArea"]
-        return json.loads(data)
-
-    # Sends a 311 which appears to be a more specific switch command
-    @deprecated("use get_smart_circuits() or get_smart_circuits_enhanced() instead")
-    @time_cached()
-    async def _switch_status(self):
-        payload = self._build_payload(311, {"opt": 0, "order": self.gateway})
-        data = (await self._mqtt_send(payload))["result"]["dataArea"]
-        return json.loads(data)
-
-    # Sends a 353 which grabs real-time smart-circuit load information
-    # https://github.com/richo/homeassistant-franklinwh/issues/27#issuecomment-2714422732
-    @deprecated("use get_smart_circuits_enhanced() instead")
-    @time_cached()
-    async def _switch_usage(self):
-        payload = self._build_payload(353, {"opt": 0, "order": self.gateway})
         data = (await self._mqtt_send(payload))["result"]["dataArea"]
         return json.loads(data)
 
@@ -1063,13 +952,7 @@ class Client(HttpClientFactory):
 
         This includes instantaneous measurements for current power, as well as totals for today (in local time)
         """
-        warn(
-            "switch statistics are deprecated from get_stats(), use get_smart_circuits_enhanced() instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        tasks = [f() for f in [self.get_composite_info, self._switch_usage]]
-        info, sw_data = await asyncio.gather(*tasks)
+        info = await self.get_composite_info()
         if info is None or info["runtimeData"] is None:
             raise InvalidDataException
         data = info["runtimeData"]
@@ -1087,9 +970,6 @@ class Client(HttpClientFactory):
                 data["p_uti"],
                 data["p_load"],
                 data["soc"],
-                sw_data["SW1ExpPower"],
-                sw_data["SW2ExpPower"],
-                sw_data["CarSWPower"],
                 grid_status,
                 RunStatus.from_id(data["run_status"]),
             ),
@@ -1101,10 +981,6 @@ class Client(HttpClientFactory):
                 data["kwh_sun"],
                 data["kwh_gen"],
                 data["kwh_load"],
-                sw_data["SW1ExpEnergy"],
-                sw_data["SW2ExpEnergy"],
-                sw_data["CarSWExpEnergy"],
-                sw_data["CarSWImpEnergy"],
             ),
         )
 
