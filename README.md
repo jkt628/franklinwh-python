@@ -2,7 +2,8 @@
 
 Python bindings to the FranklinWH API, such as it is.
 
-In order to use this, you'll need an access token, and your gateway ID. There's a bundled script which can generate an access token, your gateway ID can be found in the app under More -> Site Address. It's shown as your SN.
+In order to use this, you'll need your username (email), password, and sometimes gateway ID. Your gateway ID can be found in the app under More -> Site Address. It's shown as your SN.
+Or use the [bundled script](#informational-scripts) as shown below.
 
 ```bash
 python3 -m pip install franklinwh
@@ -16,7 +17,13 @@ Scripts in [bin](./bin) use the API to show detailed information about your inst
 python3 -m pip install franklinwh[bin]
 ```
 
-Most scripts require email address, password, and probably gateway id (referenced above).
+Gather information about your installation(s) using your username (email) and password.  Note the __gatewayId__ field(s) in particular.
+
+```bash
+python3 bin/get_info.py $FRANKLINWH_EMAIL $FRANKLINWH_PASSWORD
+```
+
+Gather detailed information about an installation with gateway ID (referenced above).
 
 ```bash
 python3 bin/get_info.py $FRANKLINWH_EMAIL $FRANKLINWH_PASSWORD $FRANKLINWH_GATEWAY_ID
@@ -39,7 +46,7 @@ This should be run in the context where you will eventually develop, which could
   source .venv/bin/activate
   ```
 
-- [Home Assistant Core](https://github.com/home-assistant/core) with [FranklinWH integration](https://github.com/richo/homeassistant-franklinwh)
+- [Home Assistant Core](https://github.com/home-assistant/core) with [FranklinWH integration](https://github.com/jkt628/homeassistant-franklinwh)
 
   This has too many permutations to discuss here but is a primary use for this API.
 
@@ -61,7 +68,7 @@ The release process involves these steps:
   [pyproject.toml/project/version](./pyproject.toml) must be unique and conform to [semantic versioning](https://semver.org/).
 
 > [!NOTE]
-> This may already be included in a [Pull Request](<https://github.com/richo/franklinwh-python/pulls>).
+> This may already be included in a [Pull Request](<https://github.com/jkt628/franklinwh-python/pulls>).
 
 - build
 
@@ -76,3 +83,11 @@ The release process involves these steps:
   ```bash
   make release
   ```
+
+## Contributors
+
+This project forked from [the original](https://github.com/richo/franklinwh-python) by [Richo Healey](https://github.com/richo).
+Many thanks to [richö](https://www.rsaconference.com/experts/richo-healey) for getting us started.
+
+Jack Thomasson extended [this project](https://github.com/jkt628/franklinwh-python) and [the home-assistant integration](https://github.com/jkt628/homeassistant-franklinwh)
+with new / fixed controls for Mode, SmartCircuits, _etc._

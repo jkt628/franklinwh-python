@@ -4,14 +4,28 @@ build-backend = "hatchling.build"
 
 [project]
 name = "franklinwh"
-version = "2026.3.0"
+version = "2026.9.0"
 authors = [
-{ name="Richo Butts", email="richo@psych0tik.net" },
+  { name = "Jack Thomasson", email = "4302889+jkt628@users.noreply.github.com" },
+  { name = "Richo Butts", email = "richo@psych0tik.net" },
 ]
 description = "Python wrapper for FranklinWH"
 readme = "README.md"
 requires-python = ">=3.13"
 classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Environment :: Console",
+  "Environment :: No Input/Output (Daemon)",
+  "Environment :: Web Environment",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Natural Language :: English",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Topic :: System :: Monitoring",
+  "Topic :: System :: Power (UPS)",
+  "Topic :: Utilities",
 ]
 dependencies = [
   "cachetools>=5.3.1",
@@ -31,8 +45,8 @@ test = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/richo/franklinwh-python"
-Issues = "https://github.com/richo/franklinwh-python/issues"
+Homepage = "https://github.com/jkt628/franklinwh-python"
+Issues = "https://github.com/jkt628/franklinwh-python/issues"
 
 [tool.hatch.build]
 exclude = [
