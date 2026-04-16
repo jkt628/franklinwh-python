@@ -39,7 +39,7 @@ This should be run in the context where you will eventually develop, which could
   source .venv/bin/activate
   ```
 
-- [Home Assistant Core](https://github.com/home-assistant/core) with [FranklinWH integration](https://github.com/richo/homeassistant-franklinwh)
+- [Home Assistant Core](https://github.com/home-assistant/core) with [FranklinWH integration](https://github.com/jkt628/homeassistant-franklinwh)
 
   This has too many permutations to discuss here but is a primary use for this API.
 
@@ -61,7 +61,7 @@ The release process involves these steps:
   [pyproject.toml/project/version](./pyproject.toml) must be unique and conform to [semantic versioning](https://semver.org/).
 
 > [!NOTE]
-> This may already be included in a [Pull Request](<https://github.com/richo/franklinwh-python/pulls>).
+> This may already be included in a [Pull Request](<https://github.com/jkt628/franklinwh-python/pulls>).
 
 - build
 
