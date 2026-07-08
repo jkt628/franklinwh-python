@@ -4,14 +4,14 @@ build-backend = "hatchling.build"
 
 [project]
 name = "franklinwh"
-version = "2026.3.0"
+version = "2026.7.1"
 authors = [
 { name="Richo Butts", email="richo@psych0tik.net" },
 { name="Jack Thomasson", email="4302889+jkt628@users.noreply.github.com" },
 ]
 description = "Python wrapper for FranklinWH"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.13"
 classifiers = [
 ]
 dependencies = [
