@@ -108,7 +108,7 @@ async def main():
         "get_export_settings": None,
         "get_home_gateway_list": None,
         "get_accessories": None,
-        # "get_mode": None, # KeyError: 21669
+        "get_mode": None,
         "get_smart_circuits": None,
         "get_smart_circuits_enhanced": None,
         "get_stats": None,
