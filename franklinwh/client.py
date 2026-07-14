@@ -934,6 +934,8 @@ class Client(HttpClientFactory):
         This includes instantaneous measurements for current power, as well as totals for today (in local time)
         """
         data = (await self.get_composite_info())["runtimeData"]
+        if data is None:
+            raise InvalidDataException
         grid_status: GridStatus = GridStatus.NORMAL
         if "offgridreason" in data:
             grid_status = GridStatus.from_offgridreason(data["offgridreason"])
