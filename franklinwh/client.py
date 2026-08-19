@@ -16,7 +16,7 @@ import hashlib
 import json
 import logging
 import time
-from typing import Any, Self
+from typing import TYPE_CHECKING, Any, Final, Self
 import zlib
 
 import httpx
@@ -63,17 +63,10 @@ def empty_stats():
             0.0,
             0.0,
             0.0,
-            0.0,
-            0.0,
-            0.0,
             GridStatus.NORMAL,
             RunStatus.STANDBY,
         ),
         Totals(
-            0.0,
-            0.0,
-            0.0,
-            0.0,
             0.0,
             0.0,
             0.0,
@@ -302,30 +295,6 @@ class RunStatus(Id):
     CHARGING = ("Charging", 1)
     DISCHARGING = ("Discharging", 2)
 
-    @staticmethod
-    def from_id(id: int) -> RunStatus:
-        """Convert a run_status id to a RunStatus enum member.
-
-        Parameters
-        ----------
-        value : int
-            The run_status id to convert.
-
-        Returns:
-        -------
-        RunStatus
-            The corresponding RunStatus enum member.
-        """
-        match id:
-            case 0:
-                return RunStatus.STANDBY
-            case 1:
-                return RunStatus.CHARGING
-            case 2:
-                return RunStatus.DISCHARGING
-            case _:
-                raise ValueError(f"Unknown run_status id: {id}")
-
 
 class WorkMode(Id):
     """Represents the workMode values of the FranklinWH gateway.
@@ -353,7 +322,48 @@ class WorkMode(Id):
     VPP_MODE = ("VPP Mode", 9)
 
 
-class Mode(dict[str, Any]):
+class ModeMeta(type):
+    """Metaclass for Mode to allow class-level access to _modes."""
+
+    defaults: Final = {  # compatible with result of getGatewayTouListV2
+        "id": 0,
+        "oldIndex": 3,
+        "name": "Unknown",
+        "soc": 100.0,
+        "maxSoc": 100.0,
+        "minSoc": 100.0,
+        "dischargeDepthSoc": None,
+        "editSocFlag": False,
+        "multiSOCFlag": False,
+        "workMode": 0,
+        "energyIncentivesType": 0,
+        "electricityType": 1,
+        "displayFlag": None,
+    }
+    allowed: Final = defaults.keys()
+
+    def __new__(mcs, name, bases, attrs):
+        """First create the class object."""
+        cls = super().__new__(mcs, name, bases, attrs)
+
+        cls._modes = {
+            mode.id: cls(
+                **(
+                    cls.defaults
+                    | {
+                        "id": mode.id,
+                        "name": mode.value,
+                        "workMode": mode.id,
+                    }
+                )
+            )
+            for mode in WorkMode
+        }
+
+        return cls
+
+
+class Mode(metaclass=ModeMeta):
     """Represents an operating mode for the FranklinWH gateway.
 
     Provides static methods to create specific modes (time of use, emergency backup, self consumption)
@@ -371,27 +381,24 @@ class Mode(dict[str, Any]):
         Generate the payload dictionary for API requests.
     """
 
-    _modes: dict[int, dict[str, Any]] = {
-        mode.id: {  # compatible with result of getGatewayTouListV2
-            "id": mode.id,
-            "oldIndex": 3,
-            "name": mode.value,
-            "soc": 100.0,
-            "maxSoc": 100.0,
-            "minSoc": 100.0,
-            "dischargeDepthSoc": None,
-            "editSocFlag": False,
-            "multiSOCFlag": False,
-            "workMode": mode.id,
-            "energyIncentivesType": 0,
-            "electricityType": 1,
-            "displayFlag": None,
-        }
-        for mode in WorkMode
-    }
+    if TYPE_CHECKING:
+        _modes: dict[int, Mode]
+        id: int
+        oldIndex: int
+        name: str
+        soc: float
+        maxSoc: float
+        minSoc: float
+        dischargeDepthSoc: float | None
+        editSocFlag: bool
+        multiSOCFlag: bool
+        workMode: int
+        energyIncentivesType: int
+        electricityType: int
+        displayFlag: int
 
     @classmethod
-    async def get_modes(cls, client: Client) -> dict[int, dict[str, Any]]:
+    async def get_modes(cls, client: Client) -> dict[int, Mode]:
         """Get the available modes for the FranklinWH gateway.
 
         MUST be called once before using other methods, e.g., through get_mode().
@@ -403,14 +410,14 @@ class Mode(dict[str, Any]):
 
         Returns:
         -------
-        dict[int, Any]
-            A dictionary of available modes keyed by workMode.
+        dict[int, Mode]
+            A dictionary of available Mode keyed by workMode.
 
         get_modes[TIME_OF_USE]["name"] returns the actual rate name
         """
         body = await client.get_tou_settings()
         for v in body["list"]:
-            cls._modes[v["workMode"]] = v
+            cls._modes[v["workMode"]] = Mode(**v)
         return cls._modes
 
     @classmethod
@@ -480,7 +487,7 @@ class Mode(dict[str, Any]):
 
     @classmethod
     def get_by_name(cls, name: str) -> Mode:
-        """Get a Mode instance by its name.
+        """Get a Mode instance by its name or WorkMode name.
 
         Parameters
         ----------
@@ -497,9 +504,12 @@ class Mode(dict[str, Any]):
         ValueError
             If the mode name is unknown.
         """
+        for mode in cls._modes.values():
+            if mode.name == name:
+                return mode
         for mode in WorkMode:
             if mode.value == name:
-                return Mode(mode.id, cls._modes[mode.id].get("soc"))
+                return cls._modes[mode.workMode]
         raise ValueError(f"Unknown mode name: {name}")
 
     def __init__(self, *args, **kwargs) -> None:
@@ -513,13 +523,15 @@ class Mode(dict[str, Any]):
             The state of charge value for the mode.
         """
         super().__init__()
-        self.__dict__ = self
-        self.workMode = kwargs.get("workMode", args[0])
-        self.soc = float(kwargs.get("soc", args[1]))
-        mode = self._modes[self.workMode]
-        self.name = WorkMode.from_id(self.workMode).value
-        self.currendId = mode["id"]
-        self.oldIndex = mode["oldIndex"]
+        sanitized = kwargs.copy()
+        for k in kwargs:
+            if k not in ModeMeta.allowed:
+                sanitized.pop(k)
+        if "workMode" not in sanitized:
+            sanitized["workMode"] = args[0]
+        if "soc" not in sanitized:
+            sanitized["soc"] = float(args[1])
+        self.__dict__.update(ModeMeta.defaults | sanitized)
 
     def payload(self, gateway, hedge: bool | int, soc: int | None = None) -> dict:
         """Generate the payload dictionary for API requests to set the gateway's operating mode.
@@ -539,10 +551,10 @@ class Mode(dict[str, Any]):
             The payload dictionary for the API request.
         """
         params = {
-            "currendId": str(self.currendId),
+            "currendId": str(self.id),
             "gatewayId": gateway,
             "lang": "EN_US",
-            "oldIndex": str(self.oldIndex),
+            "oldIndex": str(self.workMode),
             "stromEn": str(int(bool(hedge))),
             "workMode": str(self.workMode),
         }
@@ -634,7 +646,7 @@ class SmartCircuits:
 
     on = openAction(True)
 
-    def __init__(self, merged: bool, circuits: list[Circuit | None]) -> None:
+    def __init__(self, merged: bool, circuits: list[Circuit]) -> None:
         """Initialize a SmartCircuits instance."""
         self.merged = merged
         # simulate list by controlling insertion
@@ -644,15 +656,15 @@ class SmartCircuits:
         if not merged:
             self.circuits[2] = circuits[1]
         elif isinstance(circuits[1], EnhancedCircuit):
+            assert isinstance(self.circuits[1], EnhancedCircuit)
             self.circuits[1].power += circuits[1].power
             self.circuits[1].export_energy += circuits[1].export_energy
             self.circuits[1].import_energy += circuits[1].import_energy
         self.circuits[3] = circuits[2]
         # fix statistics
         for c in self.circuits.values():
-            if isinstance(c, EnhancedCircuit):
-                if not c.on:
-                    c.power = 0.0
+            if isinstance(c, EnhancedCircuit) and not c.on:
+                c.power = 0.0
 
 
 class TokenExpiredException(Exception):
@@ -909,7 +921,7 @@ class Client(HttpClientFactory):
         settings = await self.get_tou_settings()
         modes = await Mode.get_modes(self)
         for v in modes.values():
-            if v["id"] == settings["currendId"]:
+            if v.id == settings["currendId"]:
                 return v
         raise ValueError(
             f"Unknown mode ID: {settings['currendId']}, please report at {ISSUES_URL}"
