@@ -15,7 +15,8 @@ requires-python = ">=3.13"
 classifiers = [
 ]
 dependencies = [
-  "httpx[http2]>=0.28.1"
+  "cachetools>=5.3.1",
+  "httpx[http2]>=0.28.1",
 ]
 
 [project.optional-dependencies]
@@ -42,3 +43,6 @@ exclude = [
 
 [tool.ruff]
 line-length = 120
+
+[tool.ruff.lint.isort]
+force-sort-within-sections = true
