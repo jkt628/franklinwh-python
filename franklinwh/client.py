@@ -8,13 +8,14 @@ and retrieve statistics from FranklinWH energy gateway devices.
 from __future__ import annotations  # noqa: RUF100, TID251
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import Callable, Generator
 from dataclasses import dataclass
 from enum import Enum
 import hashlib
 import json
 import logging
 import time
+from typing import Self
 import zlib
 
 import httpx
@@ -22,17 +23,106 @@ import httpx
 from .api import DEFAULT_URL_BASE
 from .time_cached import time_cached
 
+# misspelled in the FranklinHW API:
+# currendId: current Id
+# runingMode: running mode
+# stromEn: Storm Hedge enabled
 
-class AccessoryType(Enum):
+
+@dataclass
+class Titled:
+    """Add a title to an id."""
+
+    title: str
+    id: int
+
+
+class TitledEnum(Titled, Enum):
+    """An enumeration with a title and an id."""
+
+    @classmethod
+    def titles(cls) -> Generator[str]:
+        """Get the titles of all enum members.
+
+        Returns:
+        -------
+        Generator[str, None, None]
+            A generator yielding the titles of all enum members.
+        """
+        for item in cls:
+            yield item.title
+
+    @classmethod
+    def ids(cls) -> Generator[int]:
+        """Get the ids of all enum members.
+
+        Returns:
+        -------
+        Generator[int, None, None]
+            A generator yielding the ids of all enum members.
+        """
+        for item in cls:
+            yield item.id
+
+    @classmethod
+    def from_id(cls, id: int) -> Self:
+        """Get the enum member corresponding to the given id.
+
+        Parameters
+        ----------
+        id : int
+            The id to look up.
+
+        Returns:
+        -------
+        Self
+            The enum member corresponding to the given id.
+
+        Raises:
+        ------
+        ValueError
+            If no enum member has the given id.
+        """
+        for item in cls:
+            if item.id == id:
+                return item
+        raise ValueError(f"No {cls.__name__} with id {id}")
+
+    @classmethod
+    def from_title(cls, title: str) -> Self:
+        """Get the enum member corresponding to the given title.
+
+        Parameters
+        ----------
+        title : str
+            The title to look up.
+
+        Returns:
+        -------
+        Self
+            The enum member corresponding to the given title.
+
+        Raises:
+        ------
+        ValueError
+            If no enum member has the given title.
+        """
+        for item in cls:
+            if item.title == title:
+                return item
+        raise ValueError(f"No {cls.__name__} with title {title}")
+
+
+class AccessoryType(TitledEnum):
     """Represents the type of accessory connected to the FranklinWH gateway.
 
     Attributes:
-        SMART_CIRCUIT_MODULE (int): A Smart Circuit module, see https://www.franklinwh.com/document/download/smart-circuits-module-installation-guide-sku-accy-scv2-us
+        SMART_CIRCUITS_MODULE (int): A Smart Circuit module, see https://www.franklinwh.com/document/download/smart-circuits-module-installation-guide-sku-accy-scv2-us
         GENERATOR_MODULE (int): A Generator module, see https://www.franklinwh.com/document/download/generator-module-installation-guide-sku-accy-genv2-us
     """
 
-    GENERATOR_MODULE = 3
-    SMART_CIRCUIT_MODULE = 4
+    GENERATOR_MODULE = ("Generator", 3)
+    SMART_CIRCUITS_MODULE = ("Smart Circuits", 4)
 
 
 def to_hex(inp):
