@@ -543,9 +543,11 @@ class Client(HttpClientFactory):
 
     # TODO(richo) Setup timeouts and deal with them gracefully.
     async def _post(self, url, payload, params: dict | None = None):
-        if params is not None:
+        if params is None:
+            params = {}
+        else:
             params = params.copy()
-            params.update({"gatewayId": self.gateway, "lang": "en_US"})
+        params.update({"gatewayId": self.gateway, "lang": "en_US"})
 
         async def __post():
             return (
