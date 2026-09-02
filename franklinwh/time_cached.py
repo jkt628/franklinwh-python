@@ -5,33 +5,24 @@ only to functions that are definitely called periodically, otherwise it may
 cache arguments and results indefinitely, think 'self' for member functions.
 """
 
-import asyncio
 from collections.abc import Callable
 from datetime import timedelta
 from functools import wraps
 from typing import Any
-
-from cachetools import TTLCache
 
 
 def time_cached(ttl: timedelta = timedelta(seconds=2)):
     """Decorator to cache function results for a specified time-to-live (TTL)."""
 
     def wrapper(func):
-        __cache = TTLCache(maxsize=10, ttl=ttl.seconds)
-        __lock = asyncio.Lock()
+        def clear(self):
+            pass
 
         @wraps(func)
         async def wrapped(*args, **kwargs):
-            async with __lock:
-                key = (args, frozenset(kwargs.items()))
-                if key in __cache:
-                    return __cache[key]
-                value = await func(*args, **kwargs)
-                __cache[key] = value
-                return value
+            return await func(*args, **kwargs)
 
-        wrapped.clear = __cache.clear
+        wrapped.clear = clear
         return wrapped
 
     return wrapper
