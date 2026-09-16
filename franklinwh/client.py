@@ -1231,6 +1231,30 @@ class Client(HttpClientFactory):
             json.loads((await self._mqtt_send(payload))["result"]["dataArea"])
         )
 
+    async def get_unread_message_count(self) -> int:
+        """Get the count of unread messages for the account."""
+        url = self.url_base + "hes-gateway/terminal/selectTerPushMessageUnreadCount"
+        return (await self._get(url))["result"]
+
+    async def get_messages(self, count: int = 1, page: int = 1) -> list[dict]:
+        """Get a list of messages for the account.
+
+        Parameters
+        ----------
+        count : int, optional
+            The number of messages to retrieve, defaults to 1.
+        page : int, optional
+            The page number to retrieve as a multiplier of count, defaults to 1.
+
+        Returns:
+        -------
+        list[dict]
+            A list of message dictionaries.
+        """
+        url = self.url_base + "hes-gateway/terminal/selectTerPushMessageListApp"
+        params = {"pageSize": count, "pageNum": page}
+        return (await self._get(url, params))["result"]
+
 
 class UnknownMethodsClient(Client):
     """A client that also implements some methods that don't obviously work, for research purposes."""

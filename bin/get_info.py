@@ -70,6 +70,8 @@ async def main():
             "userAccount": args.username,
             "userId": fetcher.info["userId"],
         },
+        "get_unread_message_count": None,
+        "get_messages": {"count": 2},
     }
     if args.gateway:
         functions.update(
@@ -139,10 +141,11 @@ async def main():
     async def get(func: str):
         if func == "info":
             return fetcher.info
+        args = functions[func]
         if func.startswith(("api-energy", "hes-gateway")):
-            return (await client._get(client.url_base + func, functions[func]))[  # noqa: SLF001
-                "result"
-            ]
+            return (await client._get(client.url_base + func, args))["result"]  # noqa: SLF001
+        if args is not None:
+            return await getattr(client, func)(**args)
         return await getattr(client, func)()
 
     async def async_get(func: str) -> None:
