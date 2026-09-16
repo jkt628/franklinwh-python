@@ -929,16 +929,21 @@ class Client(HttpClientFactory):
         self.get_modes.clear()
 
     async def set_backup_reserve(self, soc: int) -> None:
-        """Set the backup reserve for the FranklinWH gateway.
+        """Set the backup reserve for the current mode.
 
         Parameters
         ----------
         soc : int
             The desired State of Charge percentage to set for backup reserve.
         """
+        self.get_modes.clear()
         mode = await self.get_mode()
         if mode.workMode >= WorkMode.EMERGENCY_BACKUP.id:
             raise ValueError("Backup Reserve cannot be set in " + mode.name + ".")
+        if soc < mode.minSoc or soc > mode.maxSoc:
+            raise ValueError(
+                f"{soc} is out of range for {mode.name}: {mode.minSoc}-{mode.maxSoc}"
+            )
         url = self.url_base + "hes-gateway/terminal/tou/updateSocV2"
         params = {
             "soc": soc,
