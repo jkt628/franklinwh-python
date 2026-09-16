@@ -56,7 +56,12 @@ async def main():
         "info": None,
         "hes-gateway/common/getPowerCapConfigList": None,
         "hes-gateway/terminal/getAppGlobalConfig": {"userId": fetcher.info["userId"]},
+        "hes-gateway/terminal/getPersonalInfo": None,
         "hes-gateway/terminal/recommend/recommendFlag": None,
+        "hes-gateway/terminal/selectTerPushMessageListApp": {
+            "pageNum": 1,
+            "pageSize": 10,
+        },
         "hes-gateway/terminal/selectTerPushMessageUnreadCount": None,
         "get_home_gateway_list": None,
         "hes-gateway/terminal/site/list/siteAndDeviceInfo": {
@@ -89,7 +94,6 @@ async def main():
                 "hes-gateway/terminal/getDeviceInfoV2": None,
                 "hes-gateway/terminal/getGatewaySystemSetting": None,
                 "hes-gateway/terminal/getHotSpotInfo/v2": None,
-                "hes-gateway/terminal/getPersonalInfo": None,
                 "hes-gateway/terminal/getShowTip": {"type": 1},
                 "hes-gateway/terminal/message/selectMessage": None,
                 "hes-gateway/terminal/newCompliance/getComplianceDetailById": {
@@ -110,6 +114,7 @@ async def main():
                 "hes-gateway/terminal/span/getSpanSetting": None,
                 "hes-gateway/terminal/tou/getBonusInfo": None,
                 "hes-gateway/terminal/tou/getEntranceInfo": None,
+                "hes-gateway/terminal/tou/getPowerControlSetting": None,
                 "hes-gateway/terminal/tou/getTouDispatchDetail": None,
                 "hes-gateway/terminal/weather/getCurrentBriefWeather": {
                     "equipNo": args
