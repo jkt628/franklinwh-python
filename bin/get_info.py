@@ -130,6 +130,7 @@ async def main():
                 "_status": None,
                 "get_export_settings": None,
                 "get_accessories": None,
+                "get_composite_info": None,
                 "get_tou_settings": None,
                 "get_mode": None,
                 "get_smart_circuits": None,
